@@ -129,21 +129,19 @@ def format_email_body(error_level, message, error_count):
     Tạo nội dung email chi tiết
     """
     body = f"""
-Website Monitoring Alert
+Cảnh báo từ hệ thống giám sát website:
 
-Website: {WEBSITE_URL}
 Thời gian: {datetime.now()}
 Mức độ lỗi: {error_level}
 Chi tiết lỗi: {message}
 Số lần lỗi liên tiếp: {error_count}
-
 ---
 Thông tin bổ sung:
 - Script sẽ tiếp tục kiểm tra mỗi {CHECK_INTERVAL} giây
 - Email chỉ được gửi khi có lỗi mức ERROR hoặc CRITICAL
 - Cần kiểm tra ngay lập tức nếu đây là lỗi CRITICAL
+- Vui lòng kiểm tra website và server của bạn.
 
-Vui lòng kiểm tra website và server của bạn.
     """
     return body.strip()
 
