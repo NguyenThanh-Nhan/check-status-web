@@ -44,7 +44,7 @@ def classify_error(status_code=None, exception=None):
     if exception:
         # Phân loại theo loại exception
         if isinstance(exception, requests.exceptions.Timeout):
-            return ErrorLevel.WARNING, f"Timeout: Không thể kết nối trong 10 giây - {str(exception)}"
+            return ErrorLevel.WARNING, f"Timeout: Không thể kết nối trong 30 giây - {str(exception)}"
         elif isinstance(exception, requests.exceptions.ConnectionError):
             return ErrorLevel.ERROR, f"Connection Error: Không thể kết nối tới server - {str(exception)}"
         elif isinstance(exception, requests.exceptions.HTTPError):
@@ -76,7 +76,7 @@ def should_send_email(error_level):
     """
     Quyết định có nên gửi email hay không dựa trên mức độ lỗi
     """
-    return error_level in [ErrorLevel.ERROR, ErrorLevel.CRITICAL]
+    return error_level in [ErrorLevel.WARNING, ErrorLevel.ERROR, ErrorLevel.CRITICAL]
 
 
 def send_email(subject, body):
@@ -138,10 +138,9 @@ Số lần lỗi liên tiếp: {error_count}
 ---
 Thông tin bổ sung:
 - Script sẽ tiếp tục kiểm tra mỗi {CHECK_INTERVAL} giây
-- Email chỉ được gửi khi có lỗi mức ERROR hoặc CRITICAL
+- Email được gửi khi có lỗi mức WARNING, ERROR hoặc CRITICAL
 - Cần kiểm tra ngay lập tức nếu đây là lỗi CRITICAL
 - Vui lòng kiểm tra website và server của bạn.
-
     """
     return body.strip()
 
@@ -151,7 +150,8 @@ if __name__ == "__main__":
     error_count = 0
     print(f"[{datetime.now()}] Bắt đầu giám sát website {WEBSITE_URL}")
     print(f"[{datetime.now()}] Kiểm tra mỗi {CHECK_INTERVAL} giây")
-    print(f"[{datetime.now()}] Email chỉ được gửi khi có lỗi mức ERROR hoặc CRITICAL")
+    print(
+        f"[{datetime.now()}] Email được gửi khi có lỗi mức WARNING, ERROR hoặc CRITICAL")
 
     while True:
         try:
@@ -173,15 +173,17 @@ if __name__ == "__main__":
             else:
                 # Website có vấn đề
                 if should_send_email(error_level):
-                    # Chỉ gửi email khi lỗi ERROR hoặc CRITICAL
+                    # Gửi email cho WARNING, ERROR hoặc CRITICAL
                     if error_level == ErrorLevel.CRITICAL:
                         subject = f"🔴 CRITICAL - Website {WEBSITE_URL} is DOWN"
-                    else:
+                    elif error_level == ErrorLevel.ERROR:
                         subject = f"⚠️ ERROR - Website {WEBSITE_URL} has issues"
+                    else:  # WARNING
+                        subject = f"⚠️ WARNING - Website {WEBSITE_URL} has issues"
 
                     body = format_email_body(error_level, message, error_count)
 
-                    # Gửi email ngay lập tức cho lỗi CRITICAL, hoặc sau 3 lần lỗi ERROR liên tiếp
+                    # Gửi email ngay lập tức cho lỗi CRITICAL, hoặc sau 2 lần lỗi WARNING/ERROR liên tiếp
                     if error_level == ErrorLevel.CRITICAL or error_count >= 2:
                         send_email(subject, body)
                         print(
@@ -190,7 +192,7 @@ if __name__ == "__main__":
                         print(
                             f"[{datetime.now()}] Lỗi {error_level} - chưa gửi email (lần {error_count}/2)")
                 else:
-                    # WARNING level - chỉ log, không gửi email
+                    # INFO level - chỉ log, không gửi email
                     print(
                         f"[{datetime.now()}] {error_level}: {message} - không gửi email")
 
