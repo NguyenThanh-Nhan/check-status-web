@@ -8,22 +8,23 @@ import os
 from dotenv import load_dotenv
 import logging
 
-# Tải biến môi trường từ file .env
+# Load environment variables from .env file
 load_dotenv()
 
-# Cấu hình thông tin từ biến môi trường
+# Configure settings from environment variables
 WEBSITE_URL = os.getenv('WEBSITE_URL', 'https://shalom.vn/')
 EMAIL_SENDER = os.getenv('EMAIL_SENDER', 'website_monitor@cms.neko-it.site')
 EMAIL_RECEIVER = os.getenv('EMAIL_RECEIVER', 'nhannt200823@gmail.com')
 SENDGRID_API_KEY = os.getenv('SENDGRID_API_KEY')
 CHECK_INTERVAL = int(os.getenv('CHECK_INTERVAL', '3600'))
+REQUEST_TIMEOUT = int(os.getenv('REQUEST_TIMEOUT', '30'))
 
-# Kiểm tra xem API key có được cung cấp không
+# Check if API key is provided
 if not SENDGRID_API_KEY:
-    print(f"[{datetime.now()}] Lỗi: SENDGRID_API_KEY không được tìm thấy trong biến môi trường", file=sys.stderr)
+    print(f"[{datetime.now()}] Error: SENDGRID_API_KEY not found in environment variables", file=sys.stderr)
     sys.exit(1)
 
-# Định nghĩa các mức độ lỗi
+# Define error levels
 
 
 class ErrorLevel:
@@ -34,38 +35,38 @@ class ErrorLevel:
 
 
 last_status = None
-error_count = 0  # Đếm số lần lỗi liên tiếp
+error_count = 0  # Count consecutive errors
 
 
 def classify_error(status_code=None, exception=None):
     """
-    Phân loại mức độ lỗi dựa trên status code hoặc exception
+    Classify error level based on status code or exception
     """
     if exception:
-        # Phân loại theo loại exception
+        # Classify based on exception type
         if isinstance(exception, requests.exceptions.Timeout):
-            return ErrorLevel.WARNING, f"Timeout: Không thể kết nối trong 30 giây - {str(exception)}"
+            return ErrorLevel.WARNING, f"Timeout: Could not connect within {REQUEST_TIMEOUT} seconds - {str(exception)}"
         elif isinstance(exception, requests.exceptions.ConnectionError):
-            return ErrorLevel.ERROR, f"Connection Error: Không thể kết nối tới server - {str(exception)}"
+            return ErrorLevel.ERROR, f"Connection Error: Could not connect to server - {str(exception)}"
         elif isinstance(exception, requests.exceptions.HTTPError):
-            return ErrorLevel.ERROR, f"HTTP Error: Lỗi HTTP - {str(exception)}"
+            return ErrorLevel.ERROR, f"HTTP Error: HTTP issue - {str(exception)}"
         elif isinstance(exception, requests.exceptions.RequestException):
             return ErrorLevel.WARNING, f"Request Exception: {str(exception)}"
         else:
             return ErrorLevel.ERROR, f"Unknown Exception: {str(exception)}"
 
     if status_code:
-        # Phân loại theo HTTP status code
+        # Classify based on HTTP status code
         if 200 <= status_code < 300:
-            return ErrorLevel.INFO, f"Website hoạt động bình thường (Status: {status_code})"
+            return ErrorLevel.INFO, f"Website is running normally (Status: {status_code})"
         elif 300 <= status_code < 400:
-            return ErrorLevel.WARNING, f"Redirect: Website chuyển hướng (Status: {status_code})"
+            return ErrorLevel.WARNING, f"Redirect: Website redirected (Status: {status_code})"
         elif status_code == 404:
-            return ErrorLevel.WARNING, f"Page Not Found: Trang không tồn tại (Status: {status_code})"
+            return ErrorLevel.WARNING, f"Page Not Found: Page does not exist (Status: {status_code})"
         elif 400 <= status_code < 500:
-            return ErrorLevel.ERROR, f"Client Error: Lỗi phía client (Status: {status_code})"
+            return ErrorLevel.ERROR, f"Client Error: Client-side error (Status: {status_code})"
         elif 500 <= status_code < 600:
-            return ErrorLevel.CRITICAL, f"Server Error: Lỗi phía server (Status: {status_code})"
+            return ErrorLevel.CRITICAL, f"Server Error: Server-side error (Status: {status_code})"
         else:
             return ErrorLevel.WARNING, f"Unknown Status Code: {status_code}"
 
@@ -74,7 +75,7 @@ def classify_error(status_code=None, exception=None):
 
 def should_send_email(error_level):
     """
-    Quyết định có nên gửi email hay không dựa trên mức độ lỗi
+    Decide whether to send an email based on error level
     """
     return error_level in [ErrorLevel.WARNING, ErrorLevel.ERROR, ErrorLevel.CRITICAL]
 
@@ -89,28 +90,29 @@ def send_email(subject, body):
         sg = SendGridAPIClient(SENDGRID_API_KEY)
         response = sg.send(message)
         print(
-            f"[{datetime.now()}] Gửi Email thành công: {subject} (Status: {response.status_code})")
+            f"[{datetime.now()}] Email sent successfully: {subject} (Status: {response.status_code})")
         return True
     except Exception as e:
-        print(f"[{datetime.now()}] Lỗi khi gửi email: {e}", file=sys.stderr)
+        print(f"[{datetime.now()}] Error sending email: {e}", file=sys.stderr)
         return False
 
 
 def check_website():
     """
-    Kiểm tra website và trả về thông tin chi tiết về trạng thái
+    Check website and return detailed status information
     """
     global error_count
 
     try:
-        print(f"[{datetime.now()}] Kiểm tra website {WEBSITE_URL}")
-        response = requests.get(WEBSITE_URL, timeout=30)
+        print(f"[{datetime.now()}] Checking website {WEBSITE_URL}")
+        # Use timeout from .env
+        response = requests.get(WEBSITE_URL, timeout=REQUEST_TIMEOUT)
 
         error_level, message = classify_error(status_code=response.status_code)
 
         if error_level == ErrorLevel.INFO:
             print(f"[{datetime.now()}] {error_level}: {message}")
-            error_count = 0  # Reset counter khi website hoạt động bình thường
+            error_count = 0  # Reset counter when website is running normally
             return True, error_level, message
         else:
             print(f"[{datetime.now()}] {error_level}: {message}")
@@ -126,21 +128,21 @@ def check_website():
 
 def format_email_body(error_level, message, error_count):
     """
-    Tạo nội dung email chi tiết
+    Create detailed email content
     """
     body = f"""
-Cảnh báo từ hệ thống giám sát website:
+Alert from website monitoring system:
 
-Thời gian: {datetime.now()}
-Mức độ lỗi: {error_level}
-Chi tiết lỗi: {message}
-Số lần lỗi liên tiếp: {error_count}
+Time: {datetime.now()}
+Error Level: {error_level}
+Error Details: {message}
+Consecutive Error Count: {error_count}
 ---
-Thông tin bổ sung:
-- Script sẽ tiếp tục kiểm tra mỗi {CHECK_INTERVAL} giây
-- Email được gửi khi có lỗi mức WARNING, ERROR hoặc CRITICAL
-- Cần kiểm tra ngay lập tức nếu đây là lỗi CRITICAL
-- Vui lòng kiểm tra website và server của bạn.
+Additional Information:
+- Script will continue checking every {CHECK_INTERVAL} seconds
+- Emails are sent for WARNING, ERROR, or CRITICAL level issues
+- Immediate action is required for CRITICAL errors
+- Please check your website and server.
     """
     return body.strip()
 
@@ -148,32 +150,31 @@ Thông tin bổ sung:
 if __name__ == "__main__":
     last_status = None
     error_count = 0
-    print(f"[{datetime.now()}] Bắt đầu giám sát website {WEBSITE_URL}")
-    print(f"[{datetime.now()}] Kiểm tra mỗi {CHECK_INTERVAL} giây")
-    print(
-        f"[{datetime.now()}] Email được gửi khi có lỗi mức WARNING, ERROR hoặc CRITICAL")
+    print(f"[{datetime.now()}] Starting website monitoring for {WEBSITE_URL}")
+    print(f"[{datetime.now()}] Checking every {CHECK_INTERVAL} seconds")
+    print(f"[{datetime.now()}] Emails sent for WARNING, ERROR, or CRITICAL errors")
 
     while True:
         try:
             is_up, error_level, message = check_website()
 
             if is_up:
-                # Website hoạt động bình thường
+                # Website is up
                 if last_status is not None and not last_status:
-                    # Website từ DOWN chuyển sang UP
+                    # Website transitioned from DOWN to UP
                     subject = f"✅ Website {WEBSITE_URL} is BACK UP"
                     body = format_email_body(
-                        ErrorLevel.INFO, "Website đã hoạt động trở lại", 0)
+                        ErrorLevel.INFO, "Website is back online", 0)
                     send_email(subject, body)
                     print(
-                        f"[{datetime.now()}] Website đã phục hồi - đã gửi email thông báo")
+                        f"[{datetime.now()}] Website recovered - notification email sent")
                 else:
                     print(
-                        f"[{datetime.now()}] Website vẫn đang hoạt động bình thường - không gửi email")
+                        f"[{datetime.now()}] Website is still running normally - no email sent")
             else:
-                # Website có vấn đề
+                # Website has issues
                 if should_send_email(error_level):
-                    # Gửi email cho WARNING, ERROR hoặc CRITICAL
+                    # Send email for WARNING, ERROR, or CRITICAL
                     if error_level == ErrorLevel.CRITICAL:
                         subject = f"🔴 CRITICAL - Website {WEBSITE_URL} is DOWN"
                     elif error_level == ErrorLevel.ERROR:
@@ -183,28 +184,28 @@ if __name__ == "__main__":
 
                     body = format_email_body(error_level, message, error_count)
 
-                    # Gửi email ngay lập tức cho lỗi CRITICAL, hoặc sau 2 lần lỗi WARNING/ERROR liên tiếp
+                    # Send email immediately for CRITICAL or after 2 consecutive WARNING/ERROR
                     if error_level == ErrorLevel.CRITICAL or error_count >= 2:
                         send_email(subject, body)
                         print(
-                            f"[{datetime.now()}] Đã gửi email cảnh báo: {error_level}")
+                            f"[{datetime.now()}] Alert email sent: {error_level}")
                     else:
                         print(
-                            f"[{datetime.now()}] Lỗi {error_level} - chưa gửi email (lần {error_count}/2)")
+                            f"[{datetime.now()}] {error_level} error - email not sent yet (count {error_count}/2)")
                 else:
-                    # INFO level - chỉ log, không gửi email
+                    # INFO level - log only, no email
                     print(
-                        f"[{datetime.now()}] {error_level}: {message} - không gửi email")
+                        f"[{datetime.now()}] {error_level}: {message} - no email sent")
 
             last_status = is_up
             print(
-                f"[{datetime.now()}] Đợi {CHECK_INTERVAL} giây trước khi kiểm tra tiếp")
+                f"[{datetime.now()}] Waiting {CHECK_INTERVAL} seconds before next check")
             time.sleep(CHECK_INTERVAL)
 
         except KeyboardInterrupt:
-            print(f"[{datetime.now()}] Script dừng bởi người dùng")
+            print(f"[{datetime.now()}] Script stopped by user")
             sys.exit(0)
         except Exception as e:
             print(
-                f"[{datetime.now()}] Lỗi không xác định trong vòng lặp chính: {e}", file=sys.stderr)
+                f"[{datetime.now()}] Unhandled error in main loop: {e}", file=sys.stderr)
             time.sleep(CHECK_INTERVAL)
