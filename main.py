@@ -45,32 +45,32 @@ def classify_error(status_code=None, exception=None):
     if exception:
         # Classify based on exception type
         if isinstance(exception, requests.exceptions.Timeout):
-            return ErrorLevel.WARNING, f"Timeout: Could not connect within {REQUEST_TIMEOUT} seconds - {str(exception)}"
+            return ErrorLevel.WARNING, f"⚠️ Timeout: Could not connect within {REQUEST_TIMEOUT} seconds - {str(exception)} "
         elif isinstance(exception, requests.exceptions.ConnectionError):
-            return ErrorLevel.ERROR, f"Connection Error: Could not connect to server - {str(exception)}"
+            return ErrorLevel.ERROR, f"🚫 Connection Error: Could not connect to server - {str(exception)}"
         elif isinstance(exception, requests.exceptions.HTTPError):
-            return ErrorLevel.ERROR, f"HTTP Error: HTTP issue - {str(exception)}"
+            return ErrorLevel.ERROR, f"🚫 HTTP Error: HTTP issue - {str(exception)}"
         elif isinstance(exception, requests.exceptions.RequestException):
-            return ErrorLevel.WARNING, f"Request Exception: {str(exception)}"
+            return ErrorLevel.WARNING, f"⚠️ Request Exception: {str(exception)}"
         else:
-            return ErrorLevel.ERROR, f"Unknown Exception: {str(exception)}"
+            return ErrorLevel.ERROR, f"🚫 Unknown Exception: {str(exception)}"
 
     if status_code:
         # Classify based on HTTP status code
         if 200 <= status_code < 300:
-            return ErrorLevel.INFO, f"Website is running normally (Status: {status_code})"
+            return ErrorLevel.INFO, f"🆗 Website is running normally (Status: {status_code})"
         elif 300 <= status_code < 400:
-            return ErrorLevel.WARNING, f"Redirect: Website redirected (Status: {status_code})"
+            return ErrorLevel.WARNING, f"⚠️ Redirect: Website redirected (Status: {status_code})"
         elif status_code == 404:
-            return ErrorLevel.WARNING, f"Page Not Found: Page does not exist (Status: {status_code})"
+            return ErrorLevel.WARNING, f"⚠️ Page Not Found: Page does not exist (Status: {status_code})"
         elif 400 <= status_code < 500:
-            return ErrorLevel.ERROR, f"Client Error: Client-side error (Status: {status_code})"
+            return ErrorLevel.ERROR, f"⚠️ Client Error: Client-side error (Status: {status_code})"
         elif 500 <= status_code < 600:
-            return ErrorLevel.CRITICAL, f"Server Error: Server-side error (Status: {status_code})"
+            return ErrorLevel.CRITICAL, f"❌ Server Error: Server-side error (Status: {status_code})"
         else:
-            return ErrorLevel.WARNING, f"Unknown Status Code: {status_code}"
+            return ErrorLevel.WARNING, f"⚠️ Unknown Status Code: {status_code}"
 
-    return ErrorLevel.ERROR, "Unknown error occurred"
+    return ErrorLevel.ERROR, "🚫 Unknown error occurred"
 
 
 def should_send_email(error_level):
@@ -90,10 +90,10 @@ def send_email(subject, body):
         sg = SendGridAPIClient(SENDGRID_API_KEY)
         response = sg.send(message)
         print(
-            f"[{datetime.now()}] Email sent successfully: {subject} (Status: {response.status_code})")
+            f"📩🆗 [{datetime.now()}] Email sent successfully: {subject} (Status: {response.status_code})")
         return True
     except Exception as e:
-        print(f"[{datetime.now()}] Error sending email: {e}", file=sys.stderr)
+        print(f"📩❗ [{datetime.now()}] Error sending email: {e}", file=sys.stderr)
         return False
 
 
@@ -104,18 +104,18 @@ def check_website():
     global error_count
 
     try:
-        print(f"[{datetime.now()}] Checking website {WEBSITE_URL}")
+        print(f"🍀 [{datetime.now()}] Checking website {WEBSITE_URL}")
         # Use timeout from .env
         response = requests.get(WEBSITE_URL, timeout=REQUEST_TIMEOUT)
 
         error_level, message = classify_error(status_code=response.status_code)
 
         if error_level == ErrorLevel.INFO:
-            print(f"[{datetime.now()}] {error_level}: {message}")
+            print(f"🎇 [{datetime.now()}] {error_level}: {message}")
             error_count = 0  # Reset counter when website is running normally
             return True, error_level, message
         else:
-            print(f"[{datetime.now()}] {error_level}: {message}")
+            print(f"🎇 [{datetime.now()}] {error_level}: {message}")
             error_count += 1
             return False, error_level, message
 
@@ -150,9 +150,9 @@ Additional Information:
 if __name__ == "__main__":
     last_status = None
     error_count = 0
-    print(f"[{datetime.now()}] Starting website monitoring for {WEBSITE_URL}")
-    print(f"[{datetime.now()}] Checking every {CHECK_INTERVAL} seconds")
-    print(f"[{datetime.now()}] Emails sent for WARNING, ERROR, or CRITICAL errors")
+    print(f"🍻 [{datetime.now()}] Starting website monitoring for {WEBSITE_URL}")
+    print(f"⏰ [{datetime.now()}] Checking every {CHECK_INTERVAL} seconds")
+    print(f"📩 [{datetime.now()}] Emails sent for WARNING, ERROR, or CRITICAL errors")
 
     while True:
         try:
@@ -162,23 +162,23 @@ if __name__ == "__main__":
                 # Website is up
                 if last_status is not None and not last_status:
                     # Website transitioned from DOWN to UP
-                    subject = f"✅ Website {WEBSITE_URL} is BACK UP"
+                    subject = f"🌸 Website {WEBSITE_URL} is BACK UP"
                     body = format_email_body(
-                        ErrorLevel.INFO, "Website is back online", 0)
+                        ErrorLevel.INFO, "🌸 Website is back online", 0)
                     send_email(subject, body)
                     print(
-                        f"[{datetime.now()}] Website recovered - notification email sent")
+                        f"💔 [{datetime.now()}] Website recovered - notification email sent")
                 else:
                     print(
-                        f"[{datetime.now()}] Website is still running normally - no email sent")
+                        f"💌 [{datetime.now()}] Website is still running normally - no email sent")
             else:
                 # Website has issues
                 if should_send_email(error_level):
                     # Send email for WARNING, ERROR, or CRITICAL
                     if error_level == ErrorLevel.CRITICAL:
-                        subject = f"🔴 CRITICAL - Website {WEBSITE_URL} is DOWN"
+                        subject = f"❌ CRITICAL - Website {WEBSITE_URL} is DOWN"
                     elif error_level == ErrorLevel.ERROR:
-                        subject = f"⚠️ ERROR - Website {WEBSITE_URL} has issues"
+                        subject = f"🚫 ERROR - Website {WEBSITE_URL} has issues"
                     else:  # WARNING
                         subject = f"⚠️ WARNING - Website {WEBSITE_URL} has issues"
 
@@ -188,24 +188,24 @@ if __name__ == "__main__":
                     if error_level == ErrorLevel.CRITICAL or error_count >= 2:
                         send_email(subject, body)
                         print(
-                            f"[{datetime.now()}] Alert email sent: {error_level}")
+                            f"💢 [{datetime.now()}] Alert email sent: {error_level}")
                     else:
                         print(
-                            f"[{datetime.now()}] {error_level} error - email not sent yet (count {error_count}/2)")
+                            f"💢 [{datetime.now()}] {error_level} error - email not sent yet (count {error_count}/2)")
                 else:
                     # INFO level - log only, no email
                     print(
-                        f"[{datetime.now()}] {error_level}: {message} - no email sent")
+                        f"🌸[{datetime.now()}] {error_level}: {message} - no email sent")
 
             last_status = is_up
             print(
-                f"[{datetime.now()}] Waiting {CHECK_INTERVAL} seconds before next check")
+                f"🎇 [{datetime.now()}] Waiting {CHECK_INTERVAL} seconds before next check")
             time.sleep(CHECK_INTERVAL)
 
         except KeyboardInterrupt:
-            print(f"[{datetime.now()}] Script stopped by user")
+            print(f"🎇 [{datetime.now()}] Script stopped by user")
             sys.exit(0)
         except Exception as e:
             print(
-                f"[{datetime.now()}] Unhandled error in main loop: {e}", file=sys.stderr)
+                f"🎇 [{datetime.now()}] Unhandled error in main loop: {e}", file=sys.stderr)
             time.sleep(CHECK_INTERVAL)
